@@ -1,6 +1,10 @@
 import React, { Component } from 'react';
 import { Redirect } from 'react-router-dom';
-import axios from 'axios';
+
+import graphQlQueries from '../../modules/queries';
+import handleResponse from '../../modules/handleResponse';
+import handleError from '../../modules/handleError';
+import SERVER_ADDRESS from '../../modules/server';
 
 class ChangeActor extends Component {
 
@@ -10,7 +14,6 @@ class ChangeActor extends Component {
 
         this.state = {
             table: 'actors',
-            route: 'http://localhost:8080/',
             columns: ['id', 'name', 'middle_name', 'last_name', 'citizenship'],
             columnsAlt: ['#', 'Name', 'Middle Name', 'Last Name', 'Citizenship'],
             countries: [],
@@ -24,12 +27,6 @@ class ChangeActor extends Component {
             changed: false,
             errors: []
         }
-
-        this.statusCodes = {
-            BAD_REQUEST: 400,
-            UNAUTHORIZED: 401,
-            INTERNAL_SERVER_ERROR: 500
-        };
 
         this.opInsert = 'insert';
         this.opUpdate = 'update';
@@ -45,76 +42,38 @@ class ChangeActor extends Component {
 
     componentDidMount() {
 
-        this.getCountries();
-
-        if (this.props.match.params.operation === this.opUpdate) {
-            this.getActorInfo();
-        }
+        this.getCountries()
+        .then((res) => {
+            this.setState({
+                countries: res.getCountries.countries
+            })
+        })
+        .catch((err) => {
+            handleError(err);
+        });
 
     }
 
     getCountries() {
-        axios.get(`${this.state.route}${this.state.table}/countries`,
-            {withCredentials: true})
-        .then(response => {
-            this.setState({
-                countries: response.data.countries,
-                authorized: true,
-                errors: []
-            })
-        })
-        .catch(err => {
-            console.log(err);
-            if (err.response && err.response.status ===
-                this.statusCodes.UNAUTHORIZED) {
-                this.setState({
-                    countries: [],
-                    authorized: false,
-                    errors: err.response.data.errors
-                });
-            }
-        })
-    }
 
-    getActorInfo() {
-        axios.get(`${this.state.route}${this.state.table}/${
-            this.props.match.params.id}`, {withCredentials: true})
-        .then(response => {
-            this.setState({
-                actor: response.data.row[0],
-                authorized: true,
-                errors: []
-            })
-        })
-        .catch(err => {
-            console.log(err);
-            if (err.response && err.response.status ===
-                this.statusCodes.UNAUTHORIZED) {
-                this.setState({
-                    actor: {
-                        name: '',
-                        middle_name: '',
-                        last_name: '',
-                        citizenship: 'NULL'
-                    },
-                    authorized: false,
-                    errors: err.response.data.errors
-                });
-            }
-            if (err.response && (err.response.status ===
-                this.statusCodes.INTERNAL_SERVER_ERROR ||
-                err.response.status === this.statusCodes.BAD_REQUEST)) {
-                this.setState({
-                    actor: {
-                        name: '',
-                        middle_name: '',
-                        last_name: '',
-                        citizenship: 'NULL'
-                    },
-                    errors: err.response.data.errors
-                });
+        let requestBody = {
+            query: graphQlQueries.GET_COUNTRIES
+        };
+
+        return fetch(`${SERVER_ADDRESS}/graphql`, {
+            method: 'POST',
+            body: JSON.stringify(requestBody),
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
             }
         })
+        .then((res) => {
+            return res.json();
+        })
+        .then(handleResponse)
+        .catch(handleError);
+
     }
 
     onChangeName(e) {
@@ -153,55 +112,64 @@ class ChangeActor extends Component {
         });
     }
 
+    saveChanges() {
+
+        let query = null;
+        let variables = null;
+        if (this.props.match.params.operation === this.opInsert) {
+            query = graphQlQueries.INSERT_ACTOR;
+            variables = {
+                name: this.state.actor.name,
+                middle_name: this.state.actor.middle_name,
+                last_name: this.state.actor.last_name,
+                citizenship: this.state.actor.citizenship
+            }
+        }
+        else {
+            query = graphQlQueries.UPDATE_ACTOR;
+            variables = {
+                id: Number(this.props.match.params.id),
+                name: this.state.actor.name,
+                middle_name: this.state.actor.middle_name,
+                last_name: this.state.actor.last_name,
+                citizenship: this.state.actor.citizenship
+            }
+        }
+
+        const requestBody = {
+            query: query,
+            variables: variables
+        };
+
+        return fetch(`${SERVER_ADDRESS}/graphql`, {
+            method: 'POST',
+            body: JSON.stringify(requestBody),
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then((res) => {
+            return res.json();
+        })
+        .then(handleResponse)
+        .catch(handleError);
+
+    }
 
     onSubmit(e) {
 
         e.preventDefault();
 
-        const obj = {
-            name: this.state.actor.name,
-            middle_name: this.state.actor.middle_name,
-            last_name: this.state.actor.last_name,
-            citizenship: this.state.actor.citizenship,
-        };
-
-        let route = null;
-        if (this.props.match.params.operation === this.opInsert) {
-            route = `${this.state.route}${this.state.table}/${
-                this.props.match.params.operation}`
-        }
-        else {
-            route = `${this.state.route}${this.state.table}/${
-                this.props.match.params.operation}/${this.props.match.params.id}`;
-        }
-
-        axios.post(route, obj, {withCredentials: true})
-        .then(response => {
+        this.saveChanges()
+        .then((res) => {
             this.setState({
-                authorized: true,
-                changed: true,
-                errors: []
+                changed: true
             })
         })
-        .catch(err => {
-            console.log(err);
-            if (err.response && err.response.status ===
-                this.statusCodes.UNAUTHORIZED) {
-                this.setState({
-                    authorized: false,
-                    changed: false,
-                    errors: err.response.data.errors
-                });
-            }
-            if (err.response && (err.response.status ===
-                this.statusCodes.INTERNAL_SERVER_ERROR ||
-                err.response.status === this.statusCodes.BAD_REQUEST)) {
-                this.setState({
-                    changed: false,
-                    errors: err.response.data.errors
-                });
-            }
-        })
+        .catch((err) => {
+            handleError(err);
+        });
 
     }
 
@@ -227,7 +195,7 @@ class ChangeActor extends Component {
             else {
                 errorBlocks = this.state.errors.map((error) =>
                     <div key={ error.msg } className="container">
-                        <div className="alert alert-danger">{ error.msg }</div>
+                        <div className="alert alert-danger">{ error.message }</div>
                     </div>
                 );
             }

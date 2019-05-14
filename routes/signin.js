@@ -1,5 +1,5 @@
 const md5 = require('md5');
-const config = require('../config');
+const config = require('../modules/config');
 
 const main = require('../main');
 
@@ -30,7 +30,7 @@ module.exports = {
 
             if (md5(req.body.password) === result[0].password) {
 
-                const token = jwt.sign({
+                const token = main.jwt.sign({
                     login: result[0].login,
                     password: result[0].password
                 }, config.KEY,

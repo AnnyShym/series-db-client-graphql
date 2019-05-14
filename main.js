@@ -6,7 +6,12 @@ const fs = require('fs');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
-const config = require('./config');
+const graphQlHTTP = require('express-graphql');
+
+const config = require('./modules/config');
+
+const graphQlSchema = require('./graphql/schema');
+const graphQlResolvers = require('./graphql/resolvers');
 
 const app = express();
 const urlencodedParser = bodyParser.urlencoded({ extended: false });
@@ -19,7 +24,7 @@ const PORT = 8080;
 
 // Some DB info
 const DB_NAME = 'series';
-const TABLES = ['users', 'series', 'actors', 'actorsinseries'];
+const TABLES = ['users', 'series', 'actorsinseries'];
 
 // Some location information
 const DB_LOCATION = './public/create_tables.sql';
@@ -88,9 +93,18 @@ app.use(expressValidator({
   }
 }));
 
+app.use('/graphql', (req, res) => {
+    return graphQlHTTP({
+        schema: graphQlSchema,
+        rootValue: graphQlResolvers,
+        graphiql: true,
+        context: {req, res},
+    })(req, res);
+});
+
 // The middleware for checking the access rights (jwt)
 app.use(function (req, res, next) {
-    if (req.originalUrl !== "/signup" && req.originalUrl !== "/signin") {
+    if (req.originalUrl !== "/signup" && req.originalUrl !== "/signin" && req.originalUrl !== "graphql") {
 
         let cookieJwt = req.cookies.auth;
 

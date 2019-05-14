@@ -1,8 +1,12 @@
 import React, { Component } from 'react';
 import { Redirect, Link } from 'react-router-dom';
-import axios from 'axios';
 
 import Table from '../Table';
+
+import graphQlQueries from '../../modules/queries';
+import handleResponse from '../../modules/handleResponse';
+import handleError from '../../modules/handleError';
+import SERVER_ADDRESS from '../../modules/server';
 
 class Actors extends Component {
 
@@ -12,52 +16,47 @@ class Actors extends Component {
 
         this.state = {
             table: 'actors',
-            route: 'http://localhost:8080/',
             columns: ['#', 'Name', 'Middle Name', 'Last Name', 'Citizenship'],
             rows: [],
             authorized: true,
             errors: []
         };
 
-        this.statusCodes = {
-            UNAUTHORIZED: 401,
-            INTERNAL_SERVER_ERROR: 500
-        };
-
     }
 
     componentDidMount() {
-        this.getActors();
+        this.getActors()
+        .then((res) => {
+            const actors = res.getActors;
+            this.setState({
+                rows: actors,
+            })
+        })
+        .catch((err) => {
+            handleError(err);
+        });
     }
 
     getActors() {
-        axios.get(`${this.state.route}${this.state.table}`,
-            {withCredentials: true})
-        .then(response => {
-            this.setState({
-                rows: response.data.rows,
-                authorized: true,
-                errors: []
-            })
-        })
-        .catch(err => {
-            console.log(err);
-            if (err.response && err.response.status ===
-                this.statusCodes.UNAUTHORIZED) {
-                this.setState({
-                    rows: [],
-                    authorized: false,
-                    errors: err.response.data.errors
-                });
-            }
-            if (err.response && err.response.status ===
-                this.statusCodes.INTERNAL_SERVER_ERROR) {
-                this.setState({
-                    rows: [],
-                    errors: err.response.data.errors
-                });
+
+        let requestBody = {
+            query: graphQlQueries.GET_ACTORS
+        };
+
+        return fetch(`${SERVER_ADDRESS}/graphql`, {
+            method: 'POST',
+            body: JSON.stringify(requestBody),
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
             }
         })
+        .then((res) => {
+            return res.json();
+        })
+        .then(handleResponse)
+        .catch(handleError);
+
     }
 
     getActorInfo(table, row) {
@@ -89,7 +88,7 @@ class Actors extends Component {
         else {
             errorBlocks = this.state.errors.map((error) =>
                 <div key={ error.msg } className="container">
-                    <div className="alert alert-danger">{ error.msg }</div>
+                    <div className="alert alert-danger">{ error.message }</div>
                 </div>
             );
         }

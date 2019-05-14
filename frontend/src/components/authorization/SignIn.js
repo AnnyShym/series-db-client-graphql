@@ -66,7 +66,6 @@ class SignIn extends Component {
                 signedIn: true,
                 errors: []
             });
-            console.log(response);
         })
         .catch(err => {
             console.log(err);

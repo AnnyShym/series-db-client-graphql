@@ -1,6 +1,10 @@
 import React, { Component } from 'react';
 import { Redirect } from 'react-router-dom';
-import axios from 'axios';
+
+import graphQlQueries from '../../modules/queries';
+import handleResponse from '../../modules/handleResponse';
+import handleError from '../../modules/handleError';
+import SERVER_ADDRESS from '../../modules/server';
 
 class DeleteActor extends Component {
 
@@ -10,53 +14,48 @@ class DeleteActor extends Component {
 
         this.state = {
             table: 'actors',
-            route: 'http://localhost:8080/',
             authorized: true,
             deleted: false,
             errors: []
         }
 
-        this.statusCodes = {
-            BAD_REQUEST: 400,
-            UNAUTHORIZED: 401,
-            INTERNAL_SERVER_ERROR: 500
-        };
-
     }
 
     componentDidMount() {
-        this.deleteActor(this.props.match.params.id);
+        this.deleteActor(Number(this.props.match.params.id))
+        .then((res) => {
+            this.setState({
+                deleted: true
+            })
+        })
+        .catch((err) => {
+            handleError(err);
+        });
     }
 
     deleteActor(actorId) {
-        axios.post(`${this.state.route}${this.state.table}/delete/${actorId}`,
-            {}, {withCredentials: true})
-        .then(response => {
-            this.setState({
-                authorized: true,
-                deleted: true,
-                errors: []
-            })
-        })
-        .catch(err => {
-            console.log(err);
-            if (err.response && err.response.status ===
-                this.statusCodes.UNAUTHORIZED) {
-                this.setState({
-                    authorized: false,
-                    deleted: false,
-                    errors: err.response.data.errors
-                });
+
+        let requestBody = {
+            query: graphQlQueries.DELETE_ACTOR,
+            variables: {
+                id: actorId
             }
-            if (err.response && (err.response.status ===
-                this.statusCodes.INTERNAL_SERVER_ERROR ||
-                err.response.status === this.statusCodes.BAD_REQUEST)) {
-                this.setState({
-                    deleted: false,
-                    errors: err.response.data.errors
-                });
+        };
+
+        return fetch(`${SERVER_ADDRESS}/graphql`, {
+            method: 'POST',
+            body: JSON.stringify(requestBody),
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
             }
         })
+        .then((res) => {
+            return res.json();
+        })
+        .then(handleResponse)
+        .catch(handleError);
+
     }
 
     render() {
@@ -72,7 +71,7 @@ class DeleteActor extends Component {
             else {
                 let errorBlocks = this.state.errors.map((error) =>
                     <div key={ error.msg } className="container">
-                        <div className="alert alert-danger">{ error.msg }</div>
+                        <div className="alert alert-danger">{ error.message }</div>
                     </div>
                 );
                 return(
